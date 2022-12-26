@@ -87,6 +87,11 @@ func dataSourceVSphereOvfVMTemplate() *schema.Resource {
 			Computed:    true,
 			Description: "The number of SATA controllers that Terraform manages on this virtual machine. This directly affects the amount of disks you can add to the virtual machine and the maximum disk unit number. Note that lowering this value does not remove controllers.",
 		},
+		"nvme_controller_count": {
+			Type:        schema.TypeInt,
+			Computed:    true,
+			Description: "The number of NVMe controllers that Terraform manages on this virtual machine. This directly affects the amount of disks you can add to the virtual machine and the maximum disk unit number. Note that lowering this value does not remove controllers.",
+		},
 		"ide_controller_count": {
 			Type:        schema.TypeInt,
 			Computed:    true,
@@ -217,14 +222,18 @@ func dataSourceVSphereOvfVMTemplateRead(d *schema.ResourceData, meta interface{}
 			controllers["scsi"]++
 		case reflect.TypeOf(&types.VirtualSATAController{}):
 			controllers["sata"]++
+		case reflect.TypeOf(&types.VirtualNVMEController{}):
+			controllers["nvme"]++
 		case reflect.TypeOf(&types.VirtualIDEController{}):
 			controllers["ide"]++
 		}
+
 	}
 
 	_ = d.Set("scsi_type", scsiType)
 	_ = d.Set("scsi_controller_count", controllers["scsi"])
 	_ = d.Set("sata_controller_count", controllers["sata"])
+	_ = d.Set("nvme_controller_count", controllers["nvme"])
 	_ = d.Set("ide_controller_count", controllers["ide"])
 
 	d.SetId(d.Get("name").(string))

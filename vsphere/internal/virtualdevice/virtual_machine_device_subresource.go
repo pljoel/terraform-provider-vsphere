@@ -36,6 +36,10 @@ const (
 	// classes.
 	SubresourceControllerTypeSATA = "sata"
 
+	// SubresourceControllerTypeNVME is a string representation of NVMe controller
+	// classes.
+	SubresourceControllerTypeNVME = "nvme"
+
 	// SubresourceControllerTypeSCSI is a string representation of all SCSI
 	// controller types.
 	//
@@ -75,6 +79,7 @@ var subresourceIDControllerTypeAllowedValues = []string{
 	SubresourceControllerTypeSCSI,
 	SubresourceControllerTypePCI,
 	SubresourceControllerTypeSATA,
+	SubresourceControllerTypeNVME,
 }
 
 var sharesLevelAllowedValues = []string{
@@ -143,6 +148,8 @@ func controllerTypeToClass(c types.BaseVirtualController) (string, error) {
 		t = SubresourceControllerTypeIDE
 	case *types.VirtualAHCIController:
 		t = SubresourceControllerTypeSATA
+	case *types.VirtualNVMEController:
+		t = SubresourceControllerTypeNVME
 	case *types.VirtualPCIController:
 		t = SubresourceControllerTypePCI
 	case *types.ParaVirtualSCSIController, *types.VirtualBusLogicController,
@@ -401,6 +408,10 @@ func findVirtualDeviceInListControllerSelectFunc(ct string, cb int) func(types.B
 			if _, ok := device.(*types.VirtualAHCIController); !ok {
 				return false
 			}
+		case SubresourceControllerTypeNVME:
+			if _, ok := device.(*types.VirtualNVMEController); !ok {
+				return false
+			}
 		case SubresourceControllerTypeSCSI:
 			if _, ok := device.(types.BaseVirtualSCSIController); !ok {
 				return false
@@ -555,15 +566,18 @@ func NormalizeBus(l object.VirtualDeviceList, d *schema.ResourceData) (object.Vi
 	scsiType := d.Get("scsi_type").(string)
 	scsiSharing := d.Get("scsi_bus_sharing").(string)
 	sataCount := d.Get("sata_controller_count").(int)
+	nvmeCount := d.Get("nvme_controller_count").(int)
 	ideCount := d.Get("ide_controller_count").(int)
 	var spec []types.BaseVirtualDeviceConfigSpec
 	scsiCtlrs := make([]types.BaseVirtualSCSIController, scsiCount)
 	sataCtlrs := make([]types.BaseVirtualSATAController, sataCount)
+	nvmeCtlrs := make([]*types.VirtualNVMEController, nvmeCount)
 	ideCtlrs := make([]*types.VirtualIDEController, ideCount)
 	// Don't worry about doing any fancy select stuff here, just go thru the
 	// VirtualDeviceList and populate the controllers.
 	log.Printf("[DEBUG] NormalizeBus: Normalizing first %d controllers on SCSI bus to device type %s", scsiCount, scsiType)
 	log.Printf("[DEBUG] NormalizeBus: Normalizing first %d controllers on SATA bus", sataCount)
+	log.Printf("[DEBUG] NormalizeBus: Normalizing first %d controllers on NVMe bus", nvmeCount)
 	log.Printf("[DEBUG] NormalizeBus: Normalizing first %d controllers on IDE bus", ideCount)
 	for _, dev := range l {
 		switch ctlr := dev.(type) {
@@ -574,6 +588,10 @@ func NormalizeBus(l object.VirtualDeviceList, d *schema.ResourceData) (object.Vi
 		case types.BaseVirtualSATAController:
 			if busNumber := ctlr.GetVirtualSATAController().BusNumber; busNumber < int32(sataCount) {
 				sataCtlrs[busNumber] = ctlr
+			}
+		case *types.VirtualNVMEController:
+			if busNumber := ctlr.GetVirtualController().BusNumber; busNumber < int32(nvmeCount) {
+				nvmeCtlrs[busNumber] = ctlr
 			}
 		case *types.VirtualIDEController:
 			if busNumber := ctlr.GetVirtualController().BusNumber; busNumber < int32(ideCount) {
@@ -615,6 +633,18 @@ func NormalizeBus(l object.VirtualDeviceList, d *schema.ResourceData) (object.Vi
 		if ctlr == nil {
 			log.Printf("[DEBUG] NormalizeBus: Creating SATA controller at bus number %d", n)
 			cspec, err := createSATAController(&l, n)
+			if err != nil {
+				return nil, nil, err
+			}
+			spec = append(spec, cspec...)
+		}
+	}
+	log.Printf("[DEBUG] NormalizeBus: Current NVMe bus contents: %s", nvmeControllerListString(nvmeCtlrs))
+	// Now iterate over the NVMe controllers
+	for n, ctlr := range nvmeCtlrs {
+		if ctlr == nil {
+			log.Printf("[DEBUG] NormalizeBus: Creating NVMe controller at bus number %d", n)
+			cspec, err := createNVMEController(&l)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -668,6 +698,14 @@ func createSATAController(l *object.VirtualDeviceList, bus int) ([]types.BaseVir
 	ahci.Key = l.NewKey()
 	ahci.BusNumber = int32(bus)
 	cspec, err := object.VirtualDeviceList{ahci}.ConfigSpec(types.VirtualDeviceConfigSpecOperationAdd)
+	*l = applyDeviceChange(*l, cspec)
+	return cspec, err
+}
+
+// createNVMEController creates a new NVMe controller.
+func createNVMEController(l *object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
+	ide, _ := l.CreateNVMEController()
+	cspec, err := object.VirtualDeviceList{ide}.ConfigSpec(types.VirtualDeviceConfigSpecOperationAdd)
 	*l = applyDeviceChange(*l, cspec)
 	return cspec, err
 }
@@ -744,6 +782,10 @@ func pickController(l object.VirtualDeviceList, bus int, ct string) (types.BaseV
 			if ct == SubresourceControllerTypeSATA {
 				return d.GetVirtualSATAController().BusNumber == int32(bus)
 			}
+		case *types.VirtualNVMEController:
+			if ct == SubresourceControllerTypeNVME {
+				return d.GetVirtualController().BusNumber == int32(bus)
+			}
 		case *types.VirtualIDEController:
 			if ct == SubresourceControllerTypeIDE {
 				return d.GetVirtualController().BusNumber == int32(bus)
@@ -760,7 +802,7 @@ func pickController(l object.VirtualDeviceList, bus int, ct string) (types.BaseV
 		return nil, fmt.Errorf("could not find controller at bus number %d", bus)
 	}
 
-	log.Printf("[DEBUG] pickSCSIController: Found controller: %s", l.Name(l[0]))
+	log.Printf("[DEBUG] pickController: Found controller: %s", l.Name(l[0]))
 	return l[0].(types.BaseVirtualController), nil
 }
 
@@ -887,6 +929,19 @@ func sataControllerListString(ctlrs []types.BaseVirtualSATAController) string {
 			l = append(l, types.BaseVirtualDevice(nil))
 		} else {
 			l = append(l, ctlr.(types.BaseVirtualDevice))
+		}
+	}
+	return DeviceListString(l)
+}
+
+// nvmeControllerListString pretty-prints a slice of NVMe controllers.
+func nvmeControllerListString(ctlrs []*types.VirtualNVMEController) string {
+	var l object.VirtualDeviceList
+	for _, ctlr := range ctlrs {
+		if ctlr == nil {
+			l = append(l, types.BaseVirtualDevice(nil))
+		} else {
+			l = append(l, ctlr.GetVirtualDevice())
 		}
 	}
 	return DeviceListString(l)

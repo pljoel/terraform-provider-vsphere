@@ -28,7 +28,7 @@ The `vsphere_virtual_machine` resource supports standard VMDK-backed virtual dis
 
 Disks are managed by a label supplied to the [`label`](#label) attribute in a [`disk` block](#disk-options). This is separate from the automatic naming that vSphere assigns when a virtual machine is created. Control of the name for a virtual disk is not supported unless you are attaching an external disk with the [`attach`](#attach) attribute.
 
-Virtual disks can be SCSI, SATA, or IDE. The storage controllers managed by the Terraform provider can vary, depending on the value supplied to [`scsi_controller_count`](#scsi_controller_count), [`sata_controller_count`](#sata_controller_count), or [`ide_controller_count`](#ide_controller_count). This also dictates the controllers that are checked when looking for disks during a cloning process. SCSI controllers are all configured with the controller type defined by the  [`scsi_type`](#scsi_type) setting. If you are cloning from a template, devices will be added or re-configured as necessary.
+Virtual disks can be SCSI, SATA, NVMe or IDE. The storage controllers managed by the Terraform provider can vary, depending on the value supplied to [`scsi_controller_count`](#scsi_controller_count), [`sata_controller_count`](#sata_controller_count), [`nvme_controller_count`](#nvme_controller_count) or [`ide_controller_count`](#ide_controller_count). This also dictates the controllers that are checked when looking for disks during a cloning process. SCSI controllers are all configured with the controller type defined by the  [`scsi_type`](#scsi_type) setting. If you are cloning from a template, devices will be added or re-configured as necessary.
 
 When cloning from a template, you must specify disks of either the same or greater size than the disks in the source template or the same size when cloning from a snapshot (also known as a linked clone).
 
@@ -790,7 +790,7 @@ The options are:
 
 * `hv_mode` - (Optional) The hardware virtualization (non-nested) setting for the virtual machine. One of `hvAuto`, `hvOn`, or `hvOff`. Default: `hvAuto`.
 
-* `ide_controller_count` - (Optional) The number of IDE controllers that the virtual machine. This directly affects the number of disks you can add to the virtual machine and the maximum disk unit number. Note that lowering this value does not remove controllers. Default: `2`.
+* `ide_controller_count` - (Optional) The number of IDE controllers for the virtual machine. This directly affects the number of disks you can add to the virtual machine and the maximum disk unit number. Note that lowering this value does not remove controllers. Default: `2`.
 
 * `ignored_guest_ips` - (Optional) List of IP addresses and CIDR networks to ignore while waiting for an available IP address using either of the waiters. Any IP addresses in this list will be ignored so that the waiter will continue to wait for a valid IP address. Default: `[]`.
 
@@ -853,7 +853,7 @@ an error if you try to label a disk with this prefix.
 
 * `size` - (Required) The size of the disk, in GB. Must be a whole number.
 
-* `unit_number` - (Optional) The disk number on the storage bus. The maximum value for this setting is the value of the controller count times the controller capacity (15 for SCSI, 30 for SATA, and 2 for IDE). Duplicate unit numbers are not allowed. Default `0`, for which one disk must be set to.
+* `unit_number` - (Optional) The disk number on the storage bus. The maximum value for this setting is the value of the controller count times the controller capacity (15 for SCSI, 30 for SATA, 15 for NVMe and 2 for IDE). Duplicate unit numbers are not allowed. Default `0`, for which one disk must be set to.
 
 * `datastore_id` - (Optional) The [managed object reference ID][docs-about-morefs] for the datastore on which the virtual disk is placed. The default is to use the datastore of the virtual machine. See the section on [virtual machine migration](#virtual-machine-migration) for information on modifying this value.
 
@@ -891,7 +891,7 @@ an error if you try to label a disk with this prefix.
 
 * `storage_policy_id` - (Optional) The UUID of the storage policy to assign to the virtual disk.
 
-* `controller_type` - (Optional) The type of storage controller to attach the  disk to. Can be `scsi`, `sata`, or `ide`. You must have the appropriate number of controllers enabled for the selected type. Default `scsi`.
+* `controller_type` - (Optional) The type of storage controller to attach the  disk to. Can be `scsi`, `sata`, `nvme` or `ide`. You must have the appropriate number of controllers enabled for the selected type. Default `scsi`.
 
 #### Computed Disk Attributes
 

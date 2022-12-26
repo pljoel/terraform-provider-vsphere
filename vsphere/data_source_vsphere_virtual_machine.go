@@ -32,6 +32,12 @@ func dataSourceVSphereVirtualMachine() *schema.Resource {
 			Optional:    true,
 			Default:     0,
 		},
+		"nvme_controller_scan_count": {
+			Type:        schema.TypeInt,
+			Description: "The number of NVMe controllers to scan for disk sizes and controller types on.",
+			Optional:    true,
+			Default:     0,
+		},
 		"ide_controller_scan_count": {
 			Type:        schema.TypeInt,
 			Description: "The number of IDE controllers to scan for disk sizes and controller types on.",

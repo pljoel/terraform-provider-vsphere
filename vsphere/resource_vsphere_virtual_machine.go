@@ -179,6 +179,13 @@ func resourceVSphereVirtualMachine() *schema.Resource {
 			Description:  "The number of SATA controllers that Terraform manages on this virtual machine. This directly affects the amount of disks you can add to the virtual machine and the maximum disk unit number. Note that lowering this value does not remove controllers.",
 			ValidateFunc: validation.IntBetween(0, 4),
 		},
+		"nvme_controller_count": {
+			Type:         schema.TypeInt,
+			Optional:     true,
+			Default:      0,
+			Description:  "The number of NVMe controllers that Terraform manages on this virtual machine. This directly affects the amount of disks you can add to the virtual machine and the maximum disk unit number. Note that lowering this value does not remove controllers.",
+			ValidateFunc: validation.IntBetween(0, 4),
+		},
 		"ide_controller_count": {
 			Type:         schema.TypeInt,
 			Optional:     true,
@@ -1143,6 +1150,7 @@ func resourceVSphereVirtualMachineImport(d *schema.ResourceData, meta interface{
 	log.Printf("[DEBUG] Determining number of controllers for VM %q", name)
 	scsiBus := make([]bool, 4)
 	sataBus := make([]bool, 4)
+	nvmeBus := make([]bool, 4)
 	ideBus := make([]bool, 2)
 	for _, device := range props.Config.Hardware.Device {
 		switch dev := device.(type) {
@@ -1150,12 +1158,15 @@ func resourceVSphereVirtualMachineImport(d *schema.ResourceData, meta interface{
 			scsiBus[dev.GetVirtualSCSIController().BusNumber] = true
 		case types.BaseVirtualSATAController:
 			sataBus[dev.GetVirtualSATAController().BusNumber] = true
+		case *types.VirtualNVMEController:
+			nvmeBus[dev.GetVirtualController().BusNumber] = true
 		case *types.VirtualIDEController:
 			ideBus[dev.GetVirtualController().BusNumber] = true
 		}
 	}
 	_ = d.Set("scsi_controller_count", controllerCount(scsiBus))
 	_ = d.Set("sata_controller_count", controllerCount(sataBus))
+	_ = d.Set("nvme_controller_count", controllerCount(nvmeBus))
 	_ = d.Set("ide_controller_count", controllerCount(ideBus))
 
 	// Validate the disks in the VM to make sure that they will work with the
