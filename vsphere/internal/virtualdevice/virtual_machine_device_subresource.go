@@ -704,8 +704,8 @@ func createSATAController(l *object.VirtualDeviceList, bus int) ([]types.BaseVir
 
 // createNVMEController creates a new NVMe controller.
 func createNVMEController(l *object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
-	ide, _ := l.CreateNVMEController()
-	cspec, err := object.VirtualDeviceList{ide}.ConfigSpec(types.VirtualDeviceConfigSpecOperationAdd)
+	nvme, _ := l.CreateNVMEController()
+	cspec, err := object.VirtualDeviceList{nvme}.ConfigSpec(types.VirtualDeviceConfigSpecOperationAdd)
 	*l = applyDeviceChange(*l, cspec)
 	return cspec, err
 }
